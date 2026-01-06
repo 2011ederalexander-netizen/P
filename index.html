@@ -2,52 +2,51 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Zombie Sniper — Historia</title>
+<title>Pixel Zombie Sniper – SHOP UPDATE</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial}
-canvas{display:block;background:linear-gradient(#3a3a3a,#111)}
+canvas{display:block;background:linear-gradient(#222,#111)}
 
 #ui{
  position:absolute;top:10px;left:10px;
- color:#fff;font-size:14px
+ color:#fff;font-size:14px;z-index:2
 }
 
-#controls{
- position:absolute;left:10px;bottom:10px;
- display:flex;flex-direction:column;gap:6px
+#rightControls{
+ position:absolute;right:20px;bottom:190px;
+ display:flex;flex-direction:column;gap:10px;z-index:2
 }
 
-#shop{
- position:absolute;right:10px;bottom:10px;
- background:rgba(0,0,0,.8);
- padding:8px;color:white;font-size:13px;
- border-radius:8px;border:1px solid #555
-}
-
-button{padding:8px;border-radius:6px;font-size:14px}
-
-#overlay{
- position:absolute;inset:0;
- background:rgba(0,0,0,.9);
- color:white;display:flex;
- align-items:center;justify-content:center;
- flex-direction:column;
- text-align:center;padding:20px;
- font-size:18px
+#fireBtn{
+ position:absolute;right:20px;bottom:60px;
+ width:90px;height:90px;border-radius:50%;
+ background:#9b0000;color:white;font-size:18px;border:none;z-index:2
 }
 
 #joystick{
- position:absolute;left:80px;bottom:80px;
+ position:absolute;left:60px;bottom:60px;
  width:120px;height:120px;border-radius:50%;
- background:rgba(255,255,255,.08);
- touch-action:none
+ background:rgba(255,255,255,.08);touch-action:none;z-index:2
 }
 #stick{
  width:50px;height:50px;border-radius:50%;
  background:rgba(255,255,255,.4);
  position:absolute;left:35px;top:35px
 }
+
+#shop{
+ position:absolute;top:0;left:0;right:0;bottom:0;
+ background:rgba(0,0,0,.9);color:#fff;
+ display:none;flex-direction:column;
+ padding:20px;z-index:5;overflow:auto
+}
+
+.shopItem{
+ border:1px solid #555;
+ padding:12px;margin:8px 0;border-radius:8px
+}
+.shopItem button{margin-top:6px;width:100%}
 </style>
 </head>
 <body>
@@ -55,109 +54,120 @@ button{padding:8px;border-radius:6px;font-size:14px}
 <canvas id="game"></canvas>
 
 <div id="ui">
-📖 Misión: <span id="missionTxt"></span><br>
-🧟 Eliminados: <span id="kills">0</span>/<span id="goal"></span><br>
-❤️ Fuerte: <span id="base"></span><br>
-🔫 Balas: <span id="ammo"></span>
+🧟 Ronda: <span id="round">1</span><br>
+❤️ Fuerte: <span id="base">100</span><br>
+💰 Dinero: $<span id="money">0</span><br>
+🔫 Sniper: <span id="sniperName">Básico</span><br>
+🔫 Balas: <span id="ammo">6</span>
 </div>
 
-<div id="controls">
+<div id="rightControls">
+ <button onclick="toggleZoom()">🔭 ZOOM</button>
  <button onclick="reload()">🔄 RECARGAR</button>
+ <button onclick="openShop()">🛒 TIENDA</button>
 </div>
 
+<button id="fireBtn" ontouchstart="shoot()">🔫</button>
 <div id="joystick"><div id="stick"></div></div>
 
 <div id="shop">
-<b>🛒 TIENDA</b><br>
-<button onclick="upgrade('damage')">Daño +1 (20)</button>
-<button onclick="upgrade('ammo')">Balas +2 (20)</button>
-<button onclick="upgrade('base')">Vida +10 (20)</button>
-</div>
-
-<div id="overlay">
-<h2 id="title">📖 HISTORIA</h2>
-<p id="text">
-El mundo cayó por un virus desconocido.<br><br>
-Eres el último francotirador.<br>
-Defiende el último fuerte humano.
-</p>
-<button onclick="startMission()">COMENZAR</button>
+ <h2>🛒 TIENDA DE SNIPERS</h2>
+ <div id="shopList"></div>
+ <button onclick="closeShop()">CERRAR</button>
 </div>
 
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 c.width=innerWidth;c.height=innerHeight;
 
-let base=100,ammo=5,ammoMax=5,damage=1,coins=0;
-let zombies=[],toSpawn=0;
-let cross={x:c.width/2,y:c.height/2};
-let kills=0,gameOver=false;
-let mission=0;
+let base=100,round=1,toSpawn=10;
+let zombies=[],particles=[];
+let money=0;
 
-const missions=[
- {title:"PRIMER CONTACTO",text:"El virus apareció.\nElimina 10 zombies.",goal:10},
- {title:"RESISTENCIA",text:"Las hordas crecen.\nElimina 20 zombies.",goal:20},
- {title:"EL JEFE",text:"Un mutante se acerca.\nElimínalo.",goal:1,boss:true}
+const snipers=[
+ {name:"Básico",damage:1,ammo:6,zoom:1,price:0,owned:true},
+ {name:"Scout",damage:2,ammo:8,zoom:1.2,price:150},
+ {name:"Tactical",damage:3,ammo:6,zoom:1.5,price:300},
+ {name:"Heavy",damage:5,ammo:4,zoom:2,price:500},
+ {name:"Legendario",damage:8,ammo:3,zoom:2.5,price:900}
 ];
 
-function showOverlay(title,text){
- document.getElementById("overlay").style.display="flex";
- document.getElementById("title").textContent=title;
- document.getElementById("text").textContent=text;
+let currentSniper=0;
+let ammo=snipers[0].ammo;
+let cross={x:c.width/2,y:c.height/2};
+let zoom=false;
+
+/* ===== SHOP ===== */
+function openShop(){
+ document.getElementById("shop").style.display="flex";
+ renderShop();
+}
+function closeShop(){
+ document.getElementById("shop").style.display="none";
+}
+function renderShop(){
+ const list=document.getElementById("shopList");
+ list.innerHTML="";
+ snipers.forEach((s,i)=>{
+  const d=document.createElement("div");
+  d.className="shopItem";
+  d.innerHTML=`
+   <b>${s.name}</b><br>
+   Daño: ${s.damage} | Balas: ${s.ammo} | Zoom x${s.zoom}<br>
+   Precio: $${s.price}<br>
+   ${s.owned?"COMPRADO":""}
+  `;
+  const b=document.createElement("button");
+  b.textContent=s.owned?"EQUIPAR":"COMPRAR";
+  b.onclick=()=>buySniper(i);
+  d.appendChild(b);
+  list.appendChild(d);
+ });
+}
+function buySniper(i){
+ const s=snipers[i];
+ if(!s.owned){
+  if(money<s.price)return alert("No tienes dinero");
+  money-=s.price;
+  s.owned=true;
+ }
+ currentSniper=i;
+ ammo=s.ammo;
+ closeShop();
 }
 
-function startMission(){
- kills=0;
- zombies=[];
- toSpawn=missions[mission].boss?1:missions[mission].goal;
- document.getElementById("goal").textContent=missions[mission].goal;
- document.getElementById("missionTxt").textContent=missions[mission].title;
- document.getElementById("overlay").style.display="none";
-}
-
+/* ===== GAME ===== */
 function spawnZombie(){
- let isBoss=missions[mission].boss;
  zombies.push({
   x:Math.random()*c.width,
   y:-30,
-  hp:isBoss?30:2+mission,
-  speed:isBoss?.3:.6
+  hp:2+round,
+  speed:0.4+round*0.03
  });
 }
 
 function shoot(){
- if(ammo<=0||gameOver)return;
+ if(ammo<=0)return;
  ammo--;
  zombies.forEach((z,i)=>{
-  if(Math.abs(z.x-cross.x)<25&&Math.abs(z.y-cross.y)<25){
-   z.hp-=damage;
+  let r=zoom?20*snipers[currentSniper].zoom:25;
+  if(Math.abs(z.x-cross.x)<r && Math.abs(z.y-cross.y)<r){
+   z.hp-=snipers[currentSniper].damage;
    if(z.hp<=0){
-    kills++;
+    money+=10;
     zombies.splice(i,1);
    }
   }
  });
 }
 
-function reload(){
- setTimeout(()=>ammo=ammoMax,800);
-}
+function reload(){setTimeout(()=>ammo=snipers[currentSniper].ammo,800)}
+function toggleZoom(){zoom=!zoom}
 
-function upgrade(t){
- if(coins<20)return;
- coins-=20;
- if(t==="damage")damage++;
- if(t==="ammo"){ammoMax+=2;ammo=ammoMax}
- if(t==="base"){base+=10}
-}
-
-c.addEventListener("click",shoot);
-
-/* JOYSTICK */
+/* ===== JOYSTICK ===== */
 const joy=document.getElementById("joystick");
 const stick=document.getElementById("stick");
 let jx=0,jy=0,ja=false;
-
 joy.addEventListener("touchstart",()=>ja=true);
 joy.addEventListener("touchend",()=>{
  ja=false;jx=jy=0;
@@ -172,61 +182,45 @@ joy.addEventListener("touchmove",e=>{
  stick.style.top=jy+r-25+"px";
 });
 
+/* ===== LOOP ===== */
 function loop(){
- if(gameOver)return;
  ctx.clearRect(0,0,c.width,c.height);
+ cross.x+=jx*.05;cross.y+=jy*.05;
 
- cross.x+=jx*.05;
- cross.y+=jy*.05;
-
- if(toSpawn>0){
-  spawnZombie();
-  toSpawn--;
- }
+ if(toSpawn>0){spawnZombie();toSpawn--;}
 
  zombies.forEach((z,i)=>{
   z.y+=z.speed;
-  ctx.fillStyle=z.hp>10?"purple":"green";
+  ctx.fillStyle="green";
   ctx.fillRect(z.x-12,z.y-12,24,24);
-  if(z.y>c.height-70){
-   base--;
-   if(base<=0)gameOver=true;
-  }
+  if(z.y>c.height-70){base--;zombies.splice(i,1);}
  });
 
- // fuerte
- ctx.fillStyle=base>40?"#777":"red";
+ ctx.fillStyle="#777";
  ctx.fillRect(c.width/2-120,c.height-60,240,40);
 
- // mira
  ctx.strokeStyle="red";
+ let s=zoom?25*snipers[currentSniper].zoom:15;
  ctx.beginPath();
- ctx.moveTo(cross.x-15,cross.y);
- ctx.lineTo(cross.x+15,cross.y);
- ctx.moveTo(cross.x,cross.y-15);
- ctx.lineTo(cross.x,cross.y+15);
+ ctx.moveTo(cross.x-s,cross.y);
+ ctx.lineTo(cross.x+s,cross.y);
+ ctx.moveTo(cross.x,cross.y-s);
+ ctx.lineTo(cross.x,cross.y+s);
  ctx.stroke();
 
- document.getElementById("kills").textContent=kills;
- document.getElementById("base").textContent=base;
- document.getElementById("ammo").textContent=ammo;
-
- if(kills>=missions[mission].goal){
-  mission++;
-  if(mission>=missions.length){
-   showOverlay("🏆 VICTORIA","Has defendido a la humanidad.");
-  }else{
-   showOverlay(
-    "MISIÓN COMPLETADA",
-    missions[mission].text
-   );
-  }
+ if(zombies.length===0 && toSpawn===0){
+  round++;toSpawn=10+round*2;
  }
+
+ document.getElementById("round").textContent=round;
+ document.getElementById("base").textContent=base;
+ document.getElementById("money").textContent=money;
+ document.getElementById("ammo").textContent=ammo;
+ document.getElementById("sniperName").textContent=snipers[currentSniper].name;
 
  requestAnimationFrame(loop);
 }
 loop();
 </script>
-
 </body>
 </html>
