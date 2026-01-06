@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Zombie Sniper – SHOP UPDATE</title>
+<title>Pixel Zombie Sniper – SHOP PAUSE</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial}
@@ -68,6 +68,7 @@ canvas{display:block;background:linear-gradient(#222,#111)}
 </div>
 
 <button id="fireBtn" ontouchstart="shoot()">🔫</button>
+
 <div id="joystick"><div id="stick"></div></div>
 
 <div id="shop">
@@ -81,8 +82,9 @@ const c=document.getElementById("game"),ctx=c.getContext("2d");
 c.width=innerWidth;c.height=innerHeight;
 
 let base=100,round=1,toSpawn=10;
-let zombies=[],particles=[];
+let zombies=[];
 let money=0;
+let paused=false;
 
 const snipers=[
  {name:"Básico",damage:1,ammo:6,zoom:1,price:0,owned:true},
@@ -97,14 +99,18 @@ let ammo=snipers[0].ammo;
 let cross={x:c.width/2,y:c.height/2};
 let zoom=false;
 
-/* ===== SHOP ===== */
+/* ===== SHOP (PAUSA) ===== */
 function openShop(){
+ paused=true;
  document.getElementById("shop").style.display="flex";
  renderShop();
 }
+
 function closeShop(){
+ paused=false;
  document.getElementById("shop").style.display="none";
 }
+
 function renderShop(){
  const list=document.getElementById("shopList");
  list.innerHTML="";
@@ -124,6 +130,7 @@ function renderShop(){
   list.appendChild(d);
  });
 }
+
 function buySniper(i){
  const s=snipers[i];
  if(!s.owned){
@@ -147,7 +154,7 @@ function spawnZombie(){
 }
 
 function shoot(){
- if(ammo<=0)return;
+ if(paused || ammo<=0)return;
  ammo--;
  zombies.forEach((z,i)=>{
   let r=zoom?20*snipers[currentSniper].zoom:25;
@@ -161,20 +168,28 @@ function shoot(){
  });
 }
 
-function reload(){setTimeout(()=>ammo=snipers[currentSniper].ammo,800)}
-function toggleZoom(){zoom=!zoom}
+function reload(){
+ if(paused)return;
+ setTimeout(()=>ammo=snipers[currentSniper].ammo,800);
+}
+
+function toggleZoom(){
+ if(paused)return;
+ zoom=!zoom;
+}
 
 /* ===== JOYSTICK ===== */
 const joy=document.getElementById("joystick");
 const stick=document.getElementById("stick");
 let jx=0,jy=0,ja=false;
-joy.addEventListener("touchstart",()=>ja=true);
+
+joy.addEventListener("touchstart",()=>{if(!paused)ja=true});
 joy.addEventListener("touchend",()=>{
  ja=false;jx=jy=0;
  stick.style.left="35px";stick.style.top="35px";
 });
 joy.addEventListener("touchmove",e=>{
- if(!ja)return;
+ if(!ja||paused)return;
  let r=60,t=e.touches[0],b=joy.getBoundingClientRect();
  jx=Math.max(-r,Math.min(r,t.clientX-b.left-r));
  jy=Math.max(-r,Math.min(r,t.clientY-b.top-r));
@@ -184,6 +199,11 @@ joy.addEventListener("touchmove",e=>{
 
 /* ===== LOOP ===== */
 function loop(){
+ if(paused){
+  requestAnimationFrame(loop);
+  return;
+ }
+
  ctx.clearRect(0,0,c.width,c.height);
  cross.x+=jx*.05;cross.y+=jy*.05;
 
@@ -193,7 +213,10 @@ function loop(){
   z.y+=z.speed;
   ctx.fillStyle="green";
   ctx.fillRect(z.x-12,z.y-12,24,24);
-  if(z.y>c.height-70){base--;zombies.splice(i,1);}
+  if(z.y>c.height-70){
+   base--;
+   zombies.splice(i,1);
+  }
  });
 
  ctx.fillStyle="#777";
@@ -209,7 +232,8 @@ function loop(){
  ctx.stroke();
 
  if(zombies.length===0 && toSpawn===0){
-  round++;toSpawn=10+round*2;
+  round++;
+  toSpawn=10+round*2;
  }
 
  document.getElementById("round").textContent=round;
