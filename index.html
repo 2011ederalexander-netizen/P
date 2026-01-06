@@ -2,59 +2,28 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Zombie Sniper – FINAL</title>
+<title>Pixel Zombie Sniper – FIXED</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial}
 canvas{display:block;background:linear-gradient(#222,#111)}
 
-#ui{
- position:absolute;top:10px;left:10px;
- color:#fff;font-size:14px;z-index:2
-}
+#ui{position:absolute;top:10px;left:10px;color:#fff;font-size:14px;z-index:2}
+#rightControls{position:absolute;right:20px;bottom:190px;display:flex;flex-direction:column;gap:10px;z-index:2}
+#fireBtn{position:absolute;right:20px;bottom:60px;width:90px;height:90px;border-radius:50%;background:#9b0000;color:#fff;font-size:18px;border:none;z-index:2}
+#joystick{position:absolute;left:60px;bottom:60px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.08);touch-action:none;z-index:2}
+#stick{width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.4);position:absolute;left:35px;top:35px}
 
-#rightControls{
- position:absolute;right:20px;bottom:190px;
- display:flex;flex-direction:column;gap:10px;z-index:2
-}
-
-#fireBtn{
- position:absolute;right:20px;bottom:60px;
- width:90px;height:90px;border-radius:50%;
- background:#9b0000;color:white;font-size:18px;border:none;z-index:2
-}
-
-#joystick{
- position:absolute;left:60px;bottom:60px;
- width:120px;height:120px;border-radius:50%;
- background:rgba(255,255,255,.08);touch-action:none;z-index:2
-}
-#stick{
- width:50px;height:50px;border-radius:50%;
- background:rgba(255,255,255,.4);
- position:absolute;left:35px;top:35px
-}
-
-#shop{
- position:absolute;top:0;left:0;right:0;bottom:0;
- background:rgba(0,0,0,.9);color:#fff;
- display:none;flex-direction:column;
- padding:20px;z-index:5;overflow:auto
-}
-
-.shopItem{
- border:1px solid #555;
- padding:12px;margin:8px 0;border-radius:8px
-}
-.shopItem button{margin-top:6px;width:100%}
+#shop{position:absolute;inset:0;background:rgba(0,0,0,.9);color:#fff;display:none;flex-direction:column;padding:20px;z-index:5;overflow:auto}
+.shopItem{border:1px solid #555;padding:12px;margin:8px 0;border-radius:8px}
+.shopItem button{width:100%;margin-top:6px}
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
 
-<!-- 🎵 MÚSICA -->
-<audio id="music" loop autoplay>
+<audio loop autoplay>
  <source src="https://cdn.pixabay.com/audio/2022/10/30/audio_163.mp3">
 </audio>
 
@@ -73,11 +42,10 @@ canvas{display:block;background:linear-gradient(#222,#111)}
 </div>
 
 <button id="fireBtn" ontouchstart="shoot()">🔫</button>
-
 <div id="joystick"><div id="stick"></div></div>
 
 <div id="shop">
- <h2>🛒 TIENDA DE SNIPERS</h2>
+ <h2>🛒 TIENDA</h2>
  <div id="shopList"></div>
  <button onclick="closeShop()">CERRAR</button>
 </div>
@@ -103,83 +71,55 @@ let ammo=snipers[0].ammo;
 let cross={x:c.width/2,y:c.height/2};
 let zoom=false;
 
-/* ===== TIENDA (PAUSA) ===== */
+/* ===== SHOP ===== */
 function openShop(){paused=true;shop.style.display="flex";renderShop();}
 function closeShop(){paused=false;shop.style.display="none";}
-
 function renderShop(){
  shopList.innerHTML="";
  snipers.forEach((s,i)=>{
   const d=document.createElement("div");
   d.className="shopItem";
-  d.innerHTML=`
-   <b>${s.name}</b><br>
-   Daño: ${s.damage} | Balas: ${s.ammo} | Zoom x${s.zoom}
-   ${s.aoe?"<br>💥 Daño de área":""}<br>
-   Precio: $${s.price}<br>
-   ${s.owned?"COMPRADO":""}
-  `;
+  d.innerHTML=`<b>${s.name}</b><br>Daño:${s.damage} | Balas:${s.ammo}<br>Precio:$${s.price}`;
   const b=document.createElement("button");
   b.textContent=s.owned?"EQUIPAR":"COMPRAR";
-  b.onclick=()=>buySniper(i);
+  b.onclick=()=>{if(!s.owned&&money<s.price)return; s.owned=true;money-=s.price;currentSniper=i;ammo=s.ammo;closeShop();}
   d.appendChild(b);
   shopList.appendChild(d);
  });
 }
 
-function buySniper(i){
- const s=snipers[i];
- if(!s.owned){
-  if(money<s.price)return alert("No tienes dinero");
-  money-=s.price;s.owned=true;
- }
- currentSniper=i;
- ammo=s.ammo;
- closeShop();
-}
-
 /* ===== ZOMBIES ===== */
 function spawnZombie(){
- const r=Math.random();
- let z={x:Math.random()*c.width,y:-30};
- if(r<0.6){z.hp=2+round;z.speed=0.4+round*0.03;z.color="green";}
- else if(r<0.85){z.hp=6+round;z.speed=0.25;z.color="purple";}
- else{z.hp=1+round;z.speed=1.1;z.color="orange";}
+ let r=Math.random();
+ let z={x:Math.random()*c.width,y:-20};
+ if(r<0.6){z.hp=3+round;z.speed=0.5;z.color="green";}
+ else if(r<0.85){z.hp=6+round;z.speed=0.3;z.color="purple";}
+ else{z.hp=2+round;z.speed=1.2;z.color="orange";}
  zombies.push(z);
 }
 
-/* ===== DAÑO FLOTANTE ===== */
-function showDamage(x,y,val){
- damageTexts.push({x,y,val,life:60});
-}
+/* ===== DAMAGE TEXT ===== */
+function showDamage(x,y,val){damageTexts.push({x,y,val,life:60});}
 
-/* ===== DISPARO ===== */
+/* ===== SHOOT ===== */
 function shoot(){
  if(paused||ammo<=0)return;
  ammo--;
  let s=snipers[currentSniper];
 
  zombies.forEach((z,i)=>{
-  let r=zoom?20*s.zoom:25;
-  if(Math.abs(z.x-cross.x)<r && Math.abs(z.y-cross.y)<r){
+  if(Math.abs(z.x-cross.x)<20 && Math.abs(z.y-cross.y)<20){
    z.hp-=s.damage;
    showDamage(z.x,z.y,s.damage);
 
    if(s.aoe){
-    zombies.forEach((o,j)=>{
+    zombies.forEach(o=>{
      let d=Math.hypot(o.x-z.x,o.y-z.y);
-     if(d<s.aoe && i!==j){
-      let aoeDmg=Math.floor(s.damage/2);
-      o.hp-=aoeDmg;
-      showDamage(o.x,o.y,aoeDmg);
-     }
+     if(d<s.aoe){o.hp-=1;showDamage(o.x,o.y,1);}
     });
    }
 
-   if(z.hp<=0){
-    money+=10;
-    zombies.splice(i,1);
-   }
+   if(z.hp<=0){money+=10;zombies.splice(i,1);}
   }
  });
 }
@@ -187,20 +127,17 @@ function shoot(){
 function reload(){if(!paused)setTimeout(()=>ammo=snipers[currentSniper].ammo,800)}
 function toggleZoom(){if(!paused)zoom=!zoom}
 
-/* ===== JOYSTICK ===== */
-let jx=0,jy=0,ja=false;
-joystick.addEventListener("touchstart",()=>{if(!paused)ja=true});
-joystick.addEventListener("touchend",()=>{
- ja=false;jx=jy=0;
- stick.style.left="35px";stick.style.top="35px";
-});
+/* ===== JOYSTICK (FIXED) ===== */
+let jx=0,jy=0,active=false;
+joystick.addEventListener("touchstart",()=>active=true);
+joystick.addEventListener("touchend",()=>{active=false;jx=jy=0;stick.style.left="35px";stick.style.top="35px"});
 joystick.addEventListener("touchmove",e=>{
- if(!ja||paused)return;
+ if(!active)return;
  let r=60,t=e.touches[0],b=joystick.getBoundingClientRect();
- jx=Math.max(-r,Math.min(r,t.clientX-b.left-r));
- jy=Math.max(-r,Math.min(r,t.clientY-b.top-r));
- stick.style.left=jx+r-25+"px";
- stick.style.top=jy+r-25+"px";
+ jx=Math.max(-1,Math.min(1,(t.clientX-b.left-r)/r));
+ jy=Math.max(-1,Math.min(1,(t.clientY-b.top-r)/r));
+ stick.style.left=(jx*r+r-25)+"px";
+ stick.style.top=(jy*r+r-25)+"px";
 });
 
 /* ===== LOOP ===== */
@@ -208,8 +145,10 @@ function loop(){
  if(paused){requestAnimationFrame(loop);return;}
  ctx.clearRect(0,0,c.width,c.height);
 
- cross.x+=jx*.05;
- cross.y+=jy*.05;
+ cross.x+=jx*6;
+ cross.y+=jy*6;
+ cross.x=Math.max(20,Math.min(c.width-20,cross.x));
+ cross.y=Math.max(20,Math.min(c.height-80,cross.y));
 
  if(toSpawn>0){spawnZombie();toSpawn--;}
 
@@ -221,7 +160,7 @@ function loop(){
  });
 
  damageTexts.forEach((d,i)=>{
-  d.y-=0.4;d.life--;
+  d.y-=0.5;d.life--;
   ctx.fillStyle="yellow";
   ctx.fillText("-"+d.val,d.x,d.y);
   if(d.life<=0)damageTexts.splice(i,1);
@@ -231,15 +170,12 @@ function loop(){
  ctx.fillRect(c.width/2-120,c.height-60,240,40);
 
  ctx.strokeStyle="red";
- let s=zoom?25*snipers[currentSniper].zoom:15;
  ctx.beginPath();
- ctx.moveTo(cross.x-s,cross.y);
- ctx.lineTo(cross.x+s,cross.y);
- ctx.moveTo(cross.x,cross.y-s);
- ctx.lineTo(cross.x,cross.y+s);
+ ctx.moveTo(cross.x-15,cross.y);ctx.lineTo(cross.x+15,cross.y);
+ ctx.moveTo(cross.x,cross.y-15);ctx.lineTo(cross.x,cross.y+15);
  ctx.stroke();
 
- if(zombies.length===0&&toSpawn===0){
+ if(zombies.length===0 && toSpawn===0){
   round++;toSpawn=10+round*2;
  }
 
