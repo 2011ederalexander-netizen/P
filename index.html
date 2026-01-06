@@ -2,23 +2,51 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Zombie Sniper DEFENSE</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Zombie Sniper — Historia</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial}
-canvas{display:block;background:#222}
-#ui{position:absolute;top:10px;left:10px;color:#fff;font-size:14px}
-#shop{
- position:absolute;right:10px;top:10px;
- background:#111;padding:10px;color:white;font-size:14px
+canvas{display:block;background:linear-gradient(#3a3a3a,#111)}
+
+#ui{
+ position:absolute;top:10px;left:10px;
+ color:#fff;font-size:14px
 }
-button{margin-top:4px;width:100%}
-#gameOver{
+
+#controls{
+ position:absolute;left:10px;bottom:10px;
+ display:flex;flex-direction:column;gap:6px
+}
+
+#shop{
+ position:absolute;right:10px;bottom:10px;
+ background:rgba(0,0,0,.8);
+ padding:8px;color:white;font-size:13px;
+ border-radius:8px;border:1px solid #555
+}
+
+button{padding:8px;border-radius:6px;font-size:14px}
+
+#overlay{
  position:absolute;inset:0;
  background:rgba(0,0,0,.9);
- color:white;display:none;
+ color:white;display:flex;
  align-items:center;justify-content:center;
- flex-direction:column;font-size:26px
+ flex-direction:column;
+ text-align:center;padding:20px;
+ font-size:18px
+}
+
+#joystick{
+ position:absolute;left:80px;bottom:80px;
+ width:120px;height:120px;border-radius:50%;
+ background:rgba(255,255,255,.08);
+ touch-action:none
+}
+#stick{
+ width:50px;height:50px;border-radius:50%;
+ background:rgba(255,255,255,.4);
+ position:absolute;left:35px;top:35px
 }
 </style>
 </head>
@@ -27,119 +55,150 @@ button{margin-top:4px;width:100%}
 <canvas id="game"></canvas>
 
 <div id="ui">
-Oleada: <span id="wave"></span><br>
+📖 Misión: <span id="missionTxt"></span><br>
+🧟 Eliminados: <span id="kills">0</span>/<span id="goal"></span><br>
 ❤️ Fuerte: <span id="base"></span><br>
-🔫 Balas: <span id="ammo"></span><br>
-💰 Monedas: <span id="coins"></span>
+🔫 Balas: <span id="ammo"></span>
 </div>
+
+<div id="controls">
+ <button onclick="reload()">🔄 RECARGAR</button>
+</div>
+
+<div id="joystick"><div id="stick"></div></div>
 
 <div id="shop">
-<b>🛒 Tienda</b><br>
-<button onclick="upgrade('damage')">Daño (+1)</button>
-<button onclick="upgrade('ammo')">Balas (+2)</button>
-<button onclick="upgrade('base')">Vida Fuerte (+10)</button>
+<b>🛒 TIENDA</b><br>
+<button onclick="upgrade('damage')">Daño +1 (20)</button>
+<button onclick="upgrade('ammo')">Balas +2 (20)</button>
+<button onclick="upgrade('base')">Vida +10 (20)</button>
 </div>
 
-<div id="gameOver">
-💀 GAME OVER<br><br>
-<button onclick="resetGame()">Reiniciar</button>
+<div id="overlay">
+<h2 id="title">📖 HISTORIA</h2>
+<p id="text">
+El mundo cayó por un virus desconocido.<br><br>
+Eres el último francotirador.<br>
+Defiende el último fuerte humano.
+</p>
+<button onclick="startMission()">COMENZAR</button>
 </div>
 
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 c.width=innerWidth;c.height=innerHeight;
 
-let save=JSON.parse(localStorage.getItem("zombieSave"))||{
- wave:1,coins:0,damage:1,ammoMax:5,baseMax:100
-};
-
-let wave=save.wave,coins=save.coins;
-let damage=save.damage,ammoMax=save.ammoMax;
-let base=save.baseMax,baseMax=save.baseMax;
-let ammo=ammoMax;
-
-let zombies=[],toSpawn=0,gameOver=false;
+let base=100,ammo=5,ammoMax=5,damage=1,coins=0;
+let zombies=[],toSpawn=0;
 let cross={x:c.width/2,y:c.height/2};
+let kills=0,gameOver=false;
+let mission=0;
 
-function saveGame(){
- localStorage.setItem("zombieSave",JSON.stringify({
-  wave,coins,damage,ammoMax,baseMax
- }));
+const missions=[
+ {title:"PRIMER CONTACTO",text:"El virus apareció.\nElimina 10 zombies.",goal:10},
+ {title:"RESISTENCIA",text:"Las hordas crecen.\nElimina 20 zombies.",goal:20},
+ {title:"EL JEFE",text:"Un mutante se acerca.\nElimínalo.",goal:1,boss:true}
+];
+
+function showOverlay(title,text){
+ document.getElementById("overlay").style.display="flex";
+ document.getElementById("title").textContent=title;
+ document.getElementById("text").textContent=text;
 }
 
-function spawnWave(){
- toSpawn=5+wave*2;
- if(wave%5===0){
-  zombies.push({x:c.width/2,y:-40,hp:20+wave*2,speed:0.4,type:"boss"});
- }
+function startMission(){
+ kills=0;
+ zombies=[];
+ toSpawn=missions[mission].boss?1:missions[mission].goal;
+ document.getElementById("goal").textContent=missions[mission].goal;
+ document.getElementById("missionTxt").textContent=missions[mission].title;
+ document.getElementById("overlay").style.display="none";
 }
 
-spawnWave();
-
-c.addEventListener("mousemove",e=>{
- cross.x=e.clientX;cross.y=e.clientY;
-});
-c.addEventListener("click",shoot);
+function spawnZombie(){
+ let isBoss=missions[mission].boss;
+ zombies.push({
+  x:Math.random()*c.width,
+  y:-30,
+  hp:isBoss?30:2+mission,
+  speed:isBoss?.3:.6
+ });
+}
 
 function shoot(){
  if(ammo<=0||gameOver)return;
  ammo--;
- zombies.forEach(z=>{
+ zombies.forEach((z,i)=>{
   if(Math.abs(z.x-cross.x)<25&&Math.abs(z.y-cross.y)<25){
    z.hp-=damage;
    if(z.hp<=0){
-    coins+=5;
-    zombies.splice(zombies.indexOf(z),1);
+    kills++;
+    zombies.splice(i,1);
    }
   }
  });
- if(ammo===0)setTimeout(()=>ammo=ammoMax,1200);
 }
 
-function upgrade(type){
+function reload(){
+ setTimeout(()=>ammo=ammoMax,800);
+}
+
+function upgrade(t){
  if(coins<20)return;
  coins-=20;
- if(type==="damage")damage++;
- if(type==="ammo")ammoMax+=2;
- if(type==="base"){baseMax+=10;base+=10}
- saveGame();
+ if(t==="damage")damage++;
+ if(t==="ammo"){ammoMax+=2;ammo=ammoMax}
+ if(t==="base"){base+=10}
 }
 
-function resetGame(){
- localStorage.removeItem("zombieSave");
- location.reload();
-}
+c.addEventListener("click",shoot);
+
+/* JOYSTICK */
+const joy=document.getElementById("joystick");
+const stick=document.getElementById("stick");
+let jx=0,jy=0,ja=false;
+
+joy.addEventListener("touchstart",()=>ja=true);
+joy.addEventListener("touchend",()=>{
+ ja=false;jx=jy=0;
+ stick.style.left="35px";stick.style.top="35px";
+});
+joy.addEventListener("touchmove",e=>{
+ if(!ja)return;
+ let r=60,t=e.touches[0],b=joy.getBoundingClientRect();
+ jx=Math.max(-r,Math.min(r,t.clientX-b.left-r));
+ jy=Math.max(-r,Math.min(r,t.clientY-b.top-r));
+ stick.style.left=jx+r-25+"px";
+ stick.style.top=jy+r-25+"px";
+});
 
 function loop(){
  if(gameOver)return;
  ctx.clearRect(0,0,c.width,c.height);
 
- document.getElementById("wave").textContent=wave;
- document.getElementById("base").textContent=base;
- document.getElementById("ammo").textContent=ammo;
- document.getElementById("coins").textContent=coins;
+ cross.x+=jx*.05;
+ cross.y+=jy*.05;
 
  if(toSpawn>0){
-  zombies.push({
-   x:Math.random()*c.width,y:-20,
-   hp:2+wave,speed:0.5+wave*0.05,type:"normal"
-  });
+  spawnZombie();
   toSpawn--;
  }
 
  zombies.forEach((z,i)=>{
   z.y+=z.speed;
-  ctx.fillStyle=z.type==="boss"?"purple":"green";
-  ctx.fillRect(z.x-10,z.y-10,20,20);
-  if(z.y>c.height-60){
+  ctx.fillStyle=z.hp>10?"purple":"green";
+  ctx.fillRect(z.x-12,z.y-12,24,24);
+  if(z.y>c.height-70){
    base--;
-   if(base<=0){
-    gameOver=true;
-    document.getElementById("gameOver").style.display="flex";
-   }
+   if(base<=0)gameOver=true;
   }
  });
 
+ // fuerte
+ ctx.fillStyle=base>40?"#777":"red";
+ ctx.fillRect(c.width/2-120,c.height-60,240,40);
+
+ // mira
  ctx.strokeStyle="red";
  ctx.beginPath();
  ctx.moveTo(cross.x-15,cross.y);
@@ -148,10 +207,20 @@ function loop(){
  ctx.lineTo(cross.x,cross.y+15);
  ctx.stroke();
 
- if(zombies.length===0&&toSpawn===0){
-  wave++;
-  saveGame();
-  spawnWave();
+ document.getElementById("kills").textContent=kills;
+ document.getElementById("base").textContent=base;
+ document.getElementById("ammo").textContent=ammo;
+
+ if(kills>=missions[mission].goal){
+  mission++;
+  if(mission>=missions.length){
+   showOverlay("🏆 VICTORIA","Has defendido a la humanidad.");
+  }else{
+   showOverlay(
+    "MISIÓN COMPLETADA",
+    missions[mission].text
+   );
+  }
  }
 
  requestAnimationFrame(loop);
