@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Zombie Sniper – FIXED</title>
+<title>Pixel Zombie Sniper</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial}
@@ -23,7 +23,7 @@ canvas{display:block;background:linear-gradient(#222,#111)}
 
 <canvas id="game"></canvas>
 
-<audio loop autoplay>
+<audio autoplay loop>
  <source src="https://cdn.pixabay.com/audio/2022/10/30/audio_163.mp3">
 </audio>
 
@@ -54,16 +54,16 @@ canvas{display:block;background:linear-gradient(#222,#111)}
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 c.width=innerWidth;c.height=innerHeight;
 
-let base=100,round=1,toSpawn=10;
+let base=100,round=1,toSpawn=10,spawnTimer=0;
 let zombies=[],damageTexts=[];
 let money=0,paused=false;
 
 const snipers=[
  {name:"Básico",damage:1,ammo:6,zoom:1,price:0,owned:true,aoe:0},
- {name:"Scout",damage:2,ammo:8,zoom:1.2,price:150,aoe:0},
- {name:"Tactical",damage:3,ammo:6,zoom:1.5,price:300,aoe:0},
- {name:"Heavy",damage:5,ammo:4,zoom:2,price:500,aoe:0},
- {name:"Explosivo",damage:4,ammo:4,zoom:1.8,price:700,aoe:70}
+ {name:"Scout",damage:2,ammo:8,zoom:1.2,price:150,owned:false,aoe:0},
+ {name:"Tactical",damage:3,ammo:6,zoom:1.5,price:300,owned:false,aoe:0},
+ {name:"Heavy",damage:5,ammo:4,zoom:2,price:500,owned:false,aoe:0},
+ {name:"Explosivo",damage:4,ammo:4,zoom:1.8,price:700,owned:false,aoe:80}
 ];
 
 let currentSniper=0;
@@ -82,7 +82,13 @@ function renderShop(){
   d.innerHTML=`<b>${s.name}</b><br>Daño:${s.damage} | Balas:${s.ammo}<br>Precio:$${s.price}`;
   const b=document.createElement("button");
   b.textContent=s.owned?"EQUIPAR":"COMPRAR";
-  b.onclick=()=>{if(!s.owned&&money<s.price)return; s.owned=true;money-=s.price;currentSniper=i;ammo=s.ammo;closeShop();}
+  b.onclick=()=>{
+   if(!s.owned){
+    if(money<s.price)return alert("Sin dinero");
+    money-=s.price;s.owned=true;
+   }
+   currentSniper=i;ammo=s.ammo;closeShop();
+  };
   d.appendChild(b);
   shopList.appendChild(d);
  });
@@ -92,14 +98,16 @@ function renderShop(){
 function spawnZombie(){
  let r=Math.random();
  let z={x:Math.random()*c.width,y:-20};
- if(r<0.6){z.hp=3+round;z.speed=0.5;z.color="green";}
+ if(r<0.6){z.hp=3+round;z.speed=0.6;z.color="green";}
  else if(r<0.85){z.hp=6+round;z.speed=0.3;z.color="purple";}
  else{z.hp=2+round;z.speed=1.2;z.color="orange";}
  zombies.push(z);
 }
 
 /* ===== DAMAGE TEXT ===== */
-function showDamage(x,y,val){damageTexts.push({x,y,val,life:60});}
+function showDamage(x,y,val){
+ damageTexts.push({x,y,val,life:60});
+}
 
 /* ===== SHOOT ===== */
 function shoot(){
@@ -115,29 +123,51 @@ function shoot(){
    if(s.aoe){
     zombies.forEach(o=>{
      let d=Math.hypot(o.x-z.x,o.y-z.y);
-     if(d<s.aoe){o.hp-=1;showDamage(o.x,o.y,1);}
+     if(d<s.aoe){
+      o.hp-=1;
+      showDamage(o.x,o.y,1);
+     }
     });
    }
 
-   if(z.hp<=0){money+=10;zombies.splice(i,1);}
+   if(z.hp<=0){
+    money+=10;
+    zombies.splice(i,1);
+   }
   }
  });
 }
 
-function reload(){if(!paused)setTimeout(()=>ammo=snipers[currentSniper].ammo,800)}
-function toggleZoom(){if(!paused)zoom=!zoom}
+function reload(){if(!paused)setTimeout(()=>ammo=snipers[currentSniper].ammo,700);}
+function toggleZoom(){if(!paused)zoom=!zoom;}
 
 /* ===== JOYSTICK (FIXED) ===== */
-let jx=0,jy=0,active=false;
-joystick.addEventListener("touchstart",()=>active=true);
-joystick.addEventListener("touchend",()=>{active=false;jx=jy=0;stick.style.left="35px";stick.style.top="35px"});
+let jx=0,jy=0,joystickActive=false;
+
+joystick.addEventListener("touchstart",e=>{
+ joystickActive=true;
+ e.preventDefault();
+});
+joystick.addEventListener("touchend",e=>{
+ joystickActive=false;
+ jx=jy=0;
+ stick.style.left="35px";
+ stick.style.top="35px";
+ e.preventDefault();
+});
 joystick.addEventListener("touchmove",e=>{
- if(!active)return;
- let r=60,t=e.touches[0],b=joystick.getBoundingClientRect();
- jx=Math.max(-1,Math.min(1,(t.clientX-b.left-r)/r));
- jy=Math.max(-1,Math.min(1,(t.clientY-b.top-r)/r));
- stick.style.left=(jx*r+r-25)+"px";
- stick.style.top=(jy*r+r-25)+"px";
+ if(!joystickActive)return;
+ e.preventDefault();
+ const rect=joystick.getBoundingClientRect();
+ const t=e.touches[0];
+ let dx=t.clientX-(rect.left+rect.width/2);
+ let dy=t.clientY-(rect.top+rect.height/2);
+ const max=rect.width/2;
+ const dist=Math.hypot(dx,dy);
+ if(dist>max){dx=dx/dist*max;dy=dy/dist*max;}
+ jx=dx/max;jy=dy/max;
+ stick.style.left=(dx+max-25)+"px";
+ stick.style.top=(dy+max-25)+"px";
 });
 
 /* ===== LOOP ===== */
@@ -150,33 +180,45 @@ function loop(){
  cross.x=Math.max(20,Math.min(c.width-20,cross.x));
  cross.y=Math.max(20,Math.min(c.height-80,cross.y));
 
- if(toSpawn>0){spawnZombie();toSpawn--;}
+ if(toSpawn>0){
+  spawnTimer++;
+  if(spawnTimer>40){
+   spawnZombie();
+   toSpawn--;
+   spawnTimer=0;
+  }
+ }
 
  zombies.forEach((z,i)=>{
   z.y+=z.speed;
   ctx.fillStyle=z.color;
   ctx.fillRect(z.x-12,z.y-12,24,24);
-  if(z.y>c.height-70){base--;zombies.splice(i,1);}
+  if(z.y>c.height-70){
+   base--;
+   zombies.splice(i,1);
+  }
  });
 
  damageTexts.forEach((d,i)=>{
-  d.y-=0.5;d.life--;
+  d.y-=0.5;
+  d.life--;
   ctx.fillStyle="yellow";
+  ctx.font="16px Arial";
   ctx.fillText("-"+d.val,d.x,d.y);
   if(d.life<=0)damageTexts.splice(i,1);
  });
 
- ctx.fillStyle="#777";
- ctx.fillRect(c.width/2-120,c.height-60,240,40);
-
  ctx.strokeStyle="red";
  ctx.beginPath();
- ctx.moveTo(cross.x-15,cross.y);ctx.lineTo(cross.x+15,cross.y);
- ctx.moveTo(cross.x,cross.y-15);ctx.lineTo(cross.x,cross.y+15);
+ ctx.moveTo(cross.x-15,cross.y);
+ ctx.lineTo(cross.x+15,cross.y);
+ ctx.moveTo(cross.x,cross.y-15);
+ ctx.lineTo(cross.x,cross.y+15);
  ctx.stroke();
 
  if(zombies.length===0 && toSpawn===0){
-  round++;toSpawn=10+round*2;
+  round++;
+  toSpawn=10+round*2;
  }
 
  roundSpan.textContent=round;
