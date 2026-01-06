@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Pixel Zombie Sniper DEFENSE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{margin:0;overflow:hidden;background:#000;font-family:Arial}
+canvas{display:block;background:#222}
+#ui{position:absolute;top:10px;left:10px;color:#fff;font-size:14px}
+#shop{
+ position:absolute;right:10px;top:10px;
+ background:#111;padding:10px;color:white;font-size:14px
+}
+button{margin-top:4px;width:100%}
+#gameOver{
+ position:absolute;inset:0;
+ background:rgba(0,0,0,.9);
+ color:white;display:none;
+ align-items:center;justify-content:center;
+ flex-direction:column;font-size:26px
+}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+Oleada: <span id="wave"></span><br>
+❤️ Fuerte: <span id="base"></span><br>
+🔫 Balas: <span id="ammo"></span><br>
+💰 Monedas: <span id="coins"></span>
+</div>
+
+<div id="shop">
+<b>🛒 Tienda</b><br>
+<button onclick="upgrade('damage')">Daño (+1)</button>
+<button onclick="upgrade('ammo')">Balas (+2)</button>
+<button onclick="upgrade('base')">Vida Fuerte (+10)</button>
+</div>
+
+<div id="gameOver">
+💀 GAME OVER<br><br>
+<button onclick="resetGame()">Reiniciar</button>
+</div>
+
+<script>
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
+
+let save=JSON.parse(localStorage.getItem("zombieSave"))||{
+ wave:1,coins:0,damage:1,ammoMax:5,baseMax:100
+};
+
+let wave=save.wave,coins=save.coins;
+let damage=save.damage,ammoMax=save.ammoMax;
+let base=save.baseMax,baseMax=save.baseMax;
+let ammo=ammoMax;
+
+let zombies=[],toSpawn=0,gameOver=false;
+let cross={x:c.width/2,y:c.height/2};
+
+function saveGame(){
+ localStorage.setItem("zombieSave",JSON.stringify({
+  wave,coins,damage,ammoMax,baseMax
+ }));
+}
+
+function spawnWave(){
+ toSpawn=5+wave*2;
+ if(wave%5===0){
+  zombies.push({x:c.width/2,y:-40,hp:20+wave*2,speed:0.4,type:"boss"});
+ }
+}
+
+spawnWave();
+
+c.addEventListener("mousemove",e=>{
+ cross.x=e.clientX;cross.y=e.clientY;
+});
+c.addEventListener("click",shoot);
+
+function shoot(){
+ if(ammo<=0||gameOver)return;
+ ammo--;
+ zombies.forEach(z=>{
+  if(Math.abs(z.x-cross.x)<25&&Math.abs(z.y-cross.y)<25){
+   z.hp-=damage;
+   if(z.hp<=0){
+    coins+=5;
+    zombies.splice(zombies.indexOf(z),1);
+   }
+  }
+ });
+ if(ammo===0)setTimeout(()=>ammo=ammoMax,1200);
+}
+
+function upgrade(type){
+ if(coins<20)return;
+ coins-=20;
+ if(type==="damage")damage++;
+ if(type==="ammo")ammoMax+=2;
+ if(type==="base"){baseMax+=10;base+=10}
+ saveGame();
+}
+
+function resetGame(){
+ localStorage.removeItem("zombieSave");
+ location.reload();
+}
+
+function loop(){
+ if(gameOver)return;
+ ctx.clearRect(0,0,c.width,c.height);
+
+ document.getElementById("wave").textContent=wave;
+ document.getElementById("base").textContent=base;
+ document.getElementById("ammo").textContent=ammo;
+ document.getElementById("coins").textContent=coins;
+
+ if(toSpawn>0){
+  zombies.push({
+   x:Math.random()*c.width,y:-20,
+   hp:2+wave,speed:0.5+wave*0.05,type:"normal"
+  });
+  toSpawn--;
+ }
+
+ zombies.forEach((z,i)=>{
+  z.y+=z.speed;
+  ctx.fillStyle=z.type==="boss"?"purple":"green";
+  ctx.fillRect(z.x-10,z.y-10,20,20);
+  if(z.y>c.height-60){
+   base--;
+   if(base<=0){
+    gameOver=true;
+    document.getElementById("gameOver").style.display="flex";
+   }
+  }
+ });
+
+ ctx.strokeStyle="red";
+ ctx.beginPath();
+ ctx.moveTo(cross.x-15,cross.y);
+ ctx.lineTo(cross.x+15,cross.y);
+ ctx.moveTo(cross.x,cross.y-15);
+ ctx.lineTo(cross.x,cross.y+15);
+ ctx.stroke();
+
+ if(zombies.length===0&&toSpawn===0){
+  wave++;
+  saveGame();
+  spawnWave();
+ }
+
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
