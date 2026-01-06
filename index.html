@@ -28,11 +28,11 @@ canvas{display:block;background:linear-gradient(#222,#111)}
 </audio>
 
 <div id="ui">
-🧟 Ronda: <span id="round">1</span><br>
+🧟 Ronda: <span id="round">8</span><br>
 ❤️ Fuerte: <span id="base">100</span><br>
 💰 Dinero: $<span id="money">0</span><br>
 🔫 Sniper: <span id="sniperName">Básico</span><br>
-🔫 Balas: <span id="ammo">6</span>
+🔫 Balas: <span id="ammo">10</span>
 </div>
 
 <div id="rightControls">
@@ -96,8 +96,8 @@ function renderShop(){
 
 /* ===== ZOMBIES ===== */
 function spawnZombie(){
- let r=Math.random();
- let z={x:Math.random()*c.width,y:-20};
+ let r=Math.random(1);
+ let z={x:Math.random(1)*c.width,y:-20};
  if(r<0.6){z.hp=3+round;z.speed=0.6;z.color="green";}
  else if(r<0.85){z.hp=6+round;z.speed=0.3;z.color="purple";}
  else{z.hp=2+round;z.speed=1.2;z.color="orange";}
